@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kieran vs Liam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14161c;
+    --surface: #1c1f27;
+    --line: #2a2e39;
+    --text: #e7e9ee;
+    --muted: #8b91a1;
+    --kieran: #7aa7ff;
+    --liam: #f0a35e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+
+  .board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .side { padding: 24px 20px; }
+  .side + .side { border-left: 1px solid var(--line); text-align: right; }
+  .side h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--muted); }
+  .total { font-size: clamp(3rem, 14vw, 5.5rem); font-weight: 800; line-height: 1; margin-top: 8px; }
+  #kTotal { color: var(--kieran); }
+  #lTotal { color: var(--liam); }
+  .side.lead h2 { color: var(--text); }
+  .side:not(.lead) .total { opacity: .6; }
+
+  form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 24px 0 8px;
+  }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+  label.wide { grid-column: 1 / -1; }
+  input {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    width: 100%;
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  input[name="k"] { border-color: color-mix(in srgb, var(--kieran) 50%, var(--line)); }
+  input[name="l"] { border-color: color-mix(in srgb, var(--liam) 50%, var(--line)); }
+  button.add {
+    grid-column: 1 / -1;
+    font: inherit; font-weight: 600;
+    background: var(--text); color: var(--bg);
+    border: 0; border-radius: 8px; padding: 12px; cursor: pointer;
+  }
+  button.add:disabled { opacity: .5; cursor: default; }
+
+  #status { min-height: 1.4em; margin: 0 0 16px; font-size: .85rem; color: var(--muted); }
+
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { font-weight: 600; font-size: .85rem; color: var(--muted); }
+  th.k, td.k { text-align: right; color: var(--kieran); font-weight: 600; width: 70px; }
+  th.l, td.l { text-align: right; color: var(--liam); font-weight: 600; width: 70px; }
+  td.date { white-space: nowrap; color: var(--muted); }
+  td.note { color: var(--text); overflow-wrap: anywhere; }
+  td.zero { color: var(--line); font-weight: 400; }
+  button.del {
+    background: none; border: 0; color: var(--muted); cursor: pointer;
+    font: inherit; font-size: 1.1rem; padding: 4px 8px; border-radius: 6px;
+  }
+  button.del:hover { color: var(--text); background: var(--line); }
+  .empty { padding: 32px 0; text-align: center; color: var(--muted); }
+
+  @media (max-width: 480px) {
+    .side { padding: 18px 14px; }
+    th.note, td.note { min-width: 90px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="board" aria-label="Totals">
+    <div class="side" id="kSide"><h2>Kieran</h2><div class="total" id="kTotal">0</div></div>
+    <div class="side" id="lSide"><h2>Liam</h2><div class="total" id="lTotal">0</div></div>
+  </section>
+
+  <form id="form">
+    <label>Date <input type="date" name="date" required></label>
+    <label>What for <input type="text" name="note" maxlength="80" placeholder="Optional"></label>
+    <label>Kieran points <input type="number" name="k" inputmode="decimal" step="any" placeholder="0"></label>
+    <label>Liam points <input type="number" name="l" inputmode="decimal" step="any" placeholder="0"></label>
+    <button class="add" type="submit">Add score</button>
+  </form>
+  <p id="status" role="status"></p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th class="note">What for</th><th class="k">Kieran</th><th class="l">Liam</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>No scores yet. Add the first one above.</div>
+  </div>
+</main>
+
+<script>
+/* Paste your Google Apps Script web app URL between the quotes to save scores
+   permanently. Leave it empty and scores are saved in this browser only. */
+const ENDPOINT = '';
+
+const CACHE_KEY = 'kieran-liam-scores';
+let entries = [];
+
+const $ = id => document.getElementById(id);
+const form = $('form');
+const statusEl = $('status');
+
+function today() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function fmtDate(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function loadCache() {
+  try { entries = JSON.parse(localStorage.getItem(CACHE_KEY)) || []; } catch (e) { entries = []; }
+}
+function saveCache() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(entries)); } catch (e) {}
+}
+
+function render() {
+  const sorted = [...entries].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+  const rows = $('rows');
+  rows.replaceChildren();
+  let k = 0, l = 0;
+
+  for (const e of entries) { k += Number(e.k) || 0; l += Number(e.l) || 0; }
+
+  for (const e of sorted) {
+    const tr = document.createElement('tr');
+    const cell = (cls, text) => {
+      const td = document.createElement('td');
+      td.className = cls;
+      td.textContent = text;
+      return td;
+    };
+    tr.append(cell('date', fmtDate(e.date)), cell('note', e.note || ''));
+    const kv = Number(e.k) || 0, lv = Number(e.l) || 0;
+    tr.append(cell('k' + (kv ? '' : ' zero'), kv ? kv : '–'), cell('l' + (lv ? '' : ' zero'), lv ? lv : '–'));
+    const td = document.createElement('td');
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.type = 'button';
+    del.textContent = '×';
+    del.setAttribute('aria-label', 'Delete this score');
+    del.addEventListener('click', () => remove(e.id));
+    td.append(del);
+    tr.append(td);
+    rows.append(tr);
+  }
+
+  $('kTotal').textContent = +k.toFixed(2);
+  $('lTotal').textContent = +l.toFixed(2);
+  $('kSide').classList.toggle('lead', k > l);
+  $('lSide').classList.toggle('lead', l > k);
+  $('empty').hidden = entries.length > 0;
+}
+
+async function post(params) {
+  if (!ENDPOINT) return true;
+  try {
+    await fetch(ENDPOINT, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(params) });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function sync() {
+  if (!ENDPOINT) {
+    setStatus('Saving in this browser only. Add a sheet URL in the file to keep scores permanently.');
+    return;
+  }
+  setStatus('Loading scores…');
+  try {
+    const res = await fetch(ENDPOINT);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      entries = data;
+      saveCache();
+      render();
+    }
+    setStatus('');
+  } catch (e) {
+    setStatus('Could not reach the sheet. Showing the last saved scores.');
+  }
+}
+
+form.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const f = new FormData(form);
+  const k = parseFloat(f.get('k')) || 0;
+  const l = parseFloat(f.get('l')) || 0;
+  if (!k && !l) { setStatus('Enter points for Kieran, Liam or both.'); return; }
+
+  const entry = {
+    id: 'x' + Date.now(),
+    date: f.get('date') || today(),
+    k, l,
+    note: String(f.get('note') || '').trim()
+  };
+  entries.push(entry);
+  saveCache();
+  render();
+
+  form.k.value = '';
+  form.l.value = '';
+  form.note.value = '';
+  form.date.value = today();
+
+  const btn = form.querySelector('.add');
+  btn.disabled = true;
+  const ok = await post({ action: 'add', ...entry });
+  btn.disabled = false;
+  setStatus(ok ? (ENDPOINT ? 'Saved.' : '') : 'Could not save to the sheet. The score is only in this browser.');
+  if (ENDPOINT && ok) setTimeout(() => setStatus(''), 2000);
+});
+
+async function remove(id) {
+  if (!confirm('Delete this score?')) return;
+  entries = entries.filter(e => e.id !== id);
+  saveCache();
+  render();
+  const ok = await post({ action: 'delete', id });
+  if (!ok) setStatus('Could not delete from the sheet.');
+}
+
+form.date.value = today();
+loadCache();
+render();
+sync();
+</script>
+</body>
+</html>
